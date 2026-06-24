@@ -4,7 +4,87 @@
       "allow": [
         {
           "tool": "Bash",
-          "pattern": "aws * --region us-west-2*"
+          "pattern": "aws application-autoscaling * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws budgets * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws ce * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws cloudfront * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws cloudwatch * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws dynamodb * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws ec2 * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws ecs * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws elasticache * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws elbv2 * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws iam * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws identitystore * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws lambda * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws organizations * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws rds * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws s3 * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws s3api * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws secretsmanager * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws sso * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws sso-admin * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "aws sts * --region us-west-2*"
         },
         {
           "tool": "Bash",
@@ -17,6 +97,30 @@
         {
           "tool": "Bash",
           "pattern": "echo *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "head *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "grep *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "awk *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "sed *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "sort *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "bc *"
         },
         {
           "tool": "Read",
