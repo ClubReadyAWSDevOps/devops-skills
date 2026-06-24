@@ -101,31 +101,43 @@ jobs:
             You are running the automated monthly AWS infrastructure audit for
             account ${{ matrix.account_id }} (alias: ${{ steps.account-info.outputs.alias }}).
 
-            Invoke the project's own audit machinery — do NOT invent your own checklist.
-            The skill is checked out in .claude/skills/aws-comprehensive-audit/ and the four
-            sub-audit skills it orchestrates are available via the Skill tool.
+            Use the project's own audit skills — do NOT invent your own checklist. The four
+            sub-audit skills are checked out in .claude/skills/ and available via the Skill tool.
 
-            Steps:
-            1. Invoke the skill "aws-comprehensive-audit" via the Skill tool. It runs all four
-               sub-audits (cost, credentials, architecture, reserved-capacity), synthesizes the
-               findings into a prioritized report (P0–P3 with calculated cost/waste/savings
-               metrics and an architecture score), and creates the GitHub issue.
-            2. CRITICAL — multi-account uniqueness: this workflow runs once per account in a
-               matrix. Override the skill's default date-only issue title so each account gets a
-               distinct issue. Use exactly this title:
-                 "AWS Audit: ${{ steps.account-info.outputs.alias }} (${{ matrix.account_id }}) — <UTC date YYYY-MM-DD>"
-               and create it against repo ${{ github.repository }} with labels
-               "aws-audit", "monthly-review", "automated", and "account:${{ matrix.account_id }}".
-            3. All AWS data is for account ${{ matrix.account_id }} only — every aws CLI call
-               must pass --region us-west-2. Never query or reference any other account.
-            4. If a sub-audit hits AccessDenied, note the missing permission in the report and
-               continue with the others — partial results are better than none.
+            CRITICAL EXECUTION MODEL — read carefully. You are running headless (no human, no
+            interactive loop). Do NOT spawn background or parallel subagents (do NOT use the
+            Agent or Task tools) and do NOT say you will "wait for results" — a background agent
+            will never report back here and the run will end with no audit. Instead, run
+            everything INLINE in THIS conversation, one step at a time, blocking on each.
 
-            Finish by printing the created issue URL in your final message.
+            Do this in order:
+            1. Invoke the Skill "aws-cost-review" and capture its full output.
+            2. Invoke the Skill "aws-credentials-audit" and capture its full output.
+            3. Invoke the Skill "aws-architecture-review" and capture its full output.
+            4. Invoke the Skill "aws-reserved-capacity" and capture its full output.
+               (Run them sequentially. Each skill's bash runs in your own context — wait for it
+               to finish before starting the next. If one hits AccessDenied, record the missing
+               permission and continue with the rest — partial results beat none.)
+            5. Synthesize ALL findings into one prioritized report: an executive summary table
+               with calculated Total Monthly Cost, Identified Waste, Savings Opportunity and an
+               Architecture Score, then findings grouped P0/P1/P2/P3, then collapsible
+               <details> sections with each sub-audit's raw output. Match the structure in
+               .claude/skills/aws-comprehensive-audit/SKILL.md.
+            6. Write the report to /tmp/aws-audit-report.md and create the issue:
+                 gh issue create --repo ${{ github.repository }} \
+                   --title "AWS Audit: ${{ steps.account-info.outputs.alias }} (${{ matrix.account_id }}) — <UTC date YYYY-MM-DD>" \
+                   --body-file /tmp/aws-audit-report.md \
+                   --label "aws-audit" --label "monthly-review" --label "automated" \
+                   --label "account:${{ matrix.account_id }}"
+               The per-account title is REQUIRED — this workflow runs once per account in a
+               matrix and a date-only title would collide across accounts.
+
+            All AWS data is for account ${{ matrix.account_id }} only — every aws CLI call must
+            pass --region us-west-2. Finish by printing the created issue URL.
           claude_args: >-
             --model us.anthropic.claude-sonnet-4-6
-            --max-turns 50
-            --allowedTools "Skill,Task,Agent,Read,Write,Glob,Grep,Bash"
+            --max-turns 80
+            --allowedTools "Skill,Read,Write,Glob,Grep,Bash"
 
       - name: Upload audit transcript
         if: always()
