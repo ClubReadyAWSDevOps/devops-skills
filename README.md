@@ -80,6 +80,8 @@ description: Monthly AWS budget analysis and spend trend review
 
 ## Configuration
 
+### AWS CLI Setup
+
 Skills assume the following AWS CLI setup:
 
 - **No `--profile` flag** — relies on ambient default profile (`AWS_PROFILE` env var)
@@ -87,6 +89,35 @@ Skills assume the following AWS CLI setup:
 - **IAM authentication** — RDS connections use IAM tokens via `rds-db:connect`
 
 For ClubReady infrastructure specifics, see [INFRASTRUCTURE.md](INFRASTRUCTURE.md).
+
+### GitHub Actions Setup (Multi-Account)
+
+To run automated audits across multiple AWS accounts:
+
+1. **Add GitHub Secret for Account IDs:**
+   ```
+   Name: AWS_ACCOUNT_IDS
+   Value: 123456789012,234567890123,345678901234
+   ```
+   Comma-separated list of AWS account IDs to audit.
+
+2. **Create IAM Role in Each Account:**
+   ```bash
+   # Role name: aws-audit-github-actions
+   # Trust policy: GitHub OIDC provider
+   # Permissions: ReadOnlyAccess (or custom read-only policy)
+   ```
+
+3. **The workflow will:**
+   - Parse the comma-separated account IDs
+   - Run audits in parallel (max 3 concurrent)
+   - Create a **separate GitHub issue for each account**
+   - Label issues with `account:<account-id>` for filtering
+
+**Manual trigger** with custom accounts:
+```bash
+gh workflow run monthly-aws-audit.yml -f account_ids="123456789012,999888777666"
+```
 
 ## Development
 

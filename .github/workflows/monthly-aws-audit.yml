@@ -6,8 +6,8 @@ on:
     - cron: '0 9 1 * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
-      aws_account_id:
-        description: 'AWS Account ID to audit (defaults to secrets.AWS_ACCOUNT_ID)'
+      account_ids:
+        description: 'Comma-separated AWS Account IDs to audit (defaults to secrets.AWS_ACCOUNT_IDS)'
         required: false
         type: string
 
@@ -17,11 +17,35 @@ permissions:
   issues: write    # Create GitHub issue with findings
 
 jobs:
-  comprehensive-audit:
+  prepare-accounts:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Prepare account matrix
+        id: set-matrix
+        run: |
+          # Get account IDs from input or secret
+          ACCOUNT_IDS="${{ inputs.account_ids || secrets.AWS_ACCOUNT_IDS }}"
+
+          # Convert comma-separated string to JSON array
+          # Example: "123456789012,234567890123" -> ["123456789012","234567890123"]
+          MATRIX=$(echo "$ACCOUNT_IDS" | jq -R -c 'split(",") | map(gsub("^[[:space:]]+|[[:space:]]+$";""))')
+
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Will audit accounts: $MATRIX"
+
+  comprehensive-audit:
+    needs: prepare-accounts
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        account_id: ${{ fromJson(needs.prepare-accounts.outputs.matrix) }}
+      fail-fast: false  # Continue auditing other accounts even if one fails
+      max-parallel: 3   # Limit concurrent audits
     env:
       AWS_REGION: us-west-2
-      AWS_ACCOUNT_ID: ${{ inputs.aws_account_id || secrets.AWS_ACCOUNT_ID }}
+      AWS_ACCOUNT_ID: ${{ matrix.account_id }}
       GITHUB_AUDIT_REPO: ${{ github.repository }}
 
     steps:
@@ -39,12 +63,23 @@ jobs:
           bc --version
           gh --version
 
+      - name: Get account alias
+        id: account-info
+        run: |
+          # Fetch account alias for issue title (before authentication)
+          ACCOUNT_ALIAS=$(aws iam list-account-aliases --region us-west-2 --query 'AccountAliases[0]' --output text 2>/dev/null || echo "")
+          if [ -z "$ACCOUNT_ALIAS" ] || [ "$ACCOUNT_ALIAS" = "None" ]; then
+            ACCOUNT_ALIAS="Account-${{ matrix.account_id }}"
+          fi
+          echo "alias=$ACCOUNT_ALIAS" >> $GITHUB_OUTPUT
+          echo "Account alias: $ACCOUNT_ALIAS"
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/aws-audit-github-actions
+          role-to-assume: arn:aws:iam::${{ matrix.account_id }}:role/aws-audit-github-actions
           aws-region: us-west-2
-          role-session-name: github-actions-aws-audit
+          role-session-name: github-actions-aws-audit-${{ matrix.account_id }}
 
       - name: Verify AWS access
         run: |
@@ -86,9 +121,11 @@ jobs:
 
       - name: Consolidate findings
         run: |
-          echo "Consolidating audit findings..."
+          echo "Consolidating audit findings for account ${{ matrix.account_id }}..."
           bash scripts/consolidate-audit-findings.sh
         env:
+          AWS_ACCOUNT_ID: ${{ matrix.account_id }}
+          AWS_ACCOUNT_ALIAS: ${{ steps.account-info.outputs.alias }}
           COST_STATUS: ${{ steps.cost-review.outputs.status }}
           CREDS_STATUS: ${{ steps.credentials-audit.outputs.status }}
           ARCH_STATUS: ${{ steps.architecture-review.outputs.status }}
@@ -96,17 +133,20 @@ jobs:
 
       - name: Create GitHub Issue
         run: |
-          ISSUE_TITLE="AWS Infrastructure Audit — $(date -u +%Y-%m-%d)"
+          ACCOUNT_ALIAS="${{ steps.account-info.outputs.alias }}"
+          ACCOUNT_ID="${{ matrix.account_id }}"
+          ISSUE_TITLE="AWS Audit: $ACCOUNT_ALIAS ($ACCOUNT_ID) — $(date -u +%Y-%m-%d)"
 
           gh issue create \
             --repo "$GITHUB_AUDIT_REPO" \
             --title "$ISSUE_TITLE" \
             --body-file /tmp/consolidated-audit-report.md \
-            --label "aws-audit,monthly-review,automated"
+            --label "aws-audit,monthly-review,automated" \
+            --label "account:$ACCOUNT_ID"
 
-          ISSUE_URL=$(gh issue list --repo "$GITHUB_AUDIT_REPO" --limit 1 --label "aws-audit" --json url --jq '.[0].url')
+          ISSUE_URL=$(gh issue list --repo "$GITHUB_AUDIT_REPO" --limit 1 --label "aws-audit" --label "account:$ACCOUNT_ID" --json url --jq '.[0].url')
 
-          echo "✅ AWS Audit complete"
+          echo "✅ AWS Audit complete for $ACCOUNT_ALIAS"
           echo "📋 GitHub Issue: $ISSUE_URL"
           echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
         env:
@@ -117,7 +157,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: aws-audit-results-${{ github.run_number }}
+          name: aws-audit-results-${{ matrix.account_id }}-${{ github.run_number }}
           path: /tmp/*-review.txt
           retention-days: 90
 

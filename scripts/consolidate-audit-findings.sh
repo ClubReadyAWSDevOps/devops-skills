@@ -5,11 +5,14 @@ set -euo pipefail
 
 AUDIT_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
 REPORT_FILE="/tmp/consolidated-audit-report.md"
+AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-N/A}"
+AWS_ACCOUNT_ALIAS="${AWS_ACCOUNT_ALIAS:-Unknown}"
 
 # Initialize report
 cat > "$REPORT_FILE" <<EOF
-# AWS Infrastructure Audit — $(date -u +%Y-%m-%d)
+# AWS Infrastructure Audit — $AWS_ACCOUNT_ALIAS
 
+**Account ID:** \`$AWS_ACCOUNT_ID\`
 **Audit Date:** $AUDIT_DATE
 
 EOF
