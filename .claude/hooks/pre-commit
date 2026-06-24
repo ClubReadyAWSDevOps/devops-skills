@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Pre-commit hook: Validate skill files before committing
+
+echo "🔍 Validating skills..."
+
+# Find all SKILL.md files
+SKILL_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "\.claude/skills/.*/SKILL\.md$")
+
+if [ -z "$SKILL_FILES" ]; then
+  echo "✅ No skill files to validate"
+  exit 0
+fi
+
+ERRORS=0
+
+for SKILL_FILE in $SKILL_FILES; do
+  echo "Checking $SKILL_FILE..."
+
+  # Check 1: Has valid YAML frontmatter
+  if ! head -10 "$SKILL_FILE" | grep -qE "^name: [a-z0-9-]+$"; then
+    echo "  ❌ Missing or invalid 'name:' in frontmatter (must be kebab-case)"
+    ERRORS=$((ERRORS + 1))
+  fi
+
+  if ! head -10 "$SKILL_FILE" | grep -qE "^description: .+$"; then
+    echo "  ❌ Missing 'description:' in frontmatter"
+    ERRORS=$((ERRORS + 1))
+  fi
+
+  # Check 2: Directory name matches skill name
+  SKILL_NAME=$(head -10 "$SKILL_FILE" | grep -E "^name:" | cut -d' ' -f2 | tr -d '\r\n')
+  DIR_NAME=$(dirname "$SKILL_FILE" | xargs basename)
+
+  if [ "$SKILL_NAME" != "$DIR_NAME" ]; then
+    echo "  ❌ Skill name '$SKILL_NAME' doesn't match directory name '$DIR_NAME'"
+    ERRORS=$((ERRORS + 1))
+  fi
+
+  # Check 3: No --profile flags in AWS CLI commands
+  if grep -qE "aws .* --profile" "$SKILL_FILE"; then
+    echo "  ⚠️  WARNING: Contains '--profile' flag (should use AWS_PROFILE env var)"
+    echo "     Lines:"
+    grep -nE "aws .* --profile" "$SKILL_FILE" | head -3
+    ERRORS=$((ERRORS + 1))
+  fi
+
+  # Check 4: AWS CLI commands have --region
+  AWS_COMMANDS=$(grep -E "^\s*aws " "$SKILL_FILE" | grep -v "grep" || true)
+  if [ -n "$AWS_COMMANDS" ]; then
+    MISSING_REGION=$(echo "$AWS_COMMANDS" | grep -vE "\-\-region us\-west\-2" || true)
+    if [ -n "$MISSING_REGION" ]; then
+      echo "  ⚠️  WARNING: Some AWS CLI commands missing '--region us-west-2'"
+      echo "     First 3:"
+      echo "$MISSING_REGION" | head -3
+      ERRORS=$((ERRORS + 1))
+    fi
+  fi
+
+  # Check 5: No multi-line commands with backslash continuation
+  if grep -qE "\\\\\s*$" "$SKILL_FILE"; then
+    echo "  ⚠️  WARNING: Contains backslash line continuations (use single-line commands)"
+    echo "     Lines:"
+    grep -nE "\\\\\s*$" "$SKILL_FILE" | head -3
+    ERRORS=$((ERRORS + 1))
+  fi
+
+  echo "  ✅ $SKILL_FILE validated"
+done
+
+if [ $ERRORS -gt 0 ]; then
+  echo ""
+  echo "❌ $ERRORS validation issue(s) found"
+  echo "Fix issues or commit with --no-verify to bypass"
+  exit 1
+fi
+
+echo "✅ All skill validations passed"
+exit 0

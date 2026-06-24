@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "global": {
+      "allow": [
+        {
+          "tool": "Bash",
+          "pattern": "aws * --region us-west-2*"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "jq *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "date *"
+        },
+        {
+          "tool": "Bash",
+          "pattern": "echo *"
+        },
+        {
+          "tool": "Read",
+          "pattern": "**/SKILL.md"
+        },
+        {
+          "tool": "Read",
+          "pattern": "**/CLAUDE.md"
+        },
+        {
+          "tool": "Read",
+          "pattern": "**/INFRASTRUCTURE.md"
+        },
+        {
+          "tool": "Read",
+          "pattern": "**/README.md"
+        }
+      ]
+    }
+  }
+}
