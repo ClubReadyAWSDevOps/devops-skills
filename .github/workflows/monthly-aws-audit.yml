@@ -123,6 +123,11 @@ jobs:
                Architecture Score, then findings grouped P0/P1/P2/P3, then collapsible
                <details> sections with each sub-audit's raw output. Match the structure in
                .claude/skills/aws-comprehensive-audit/SKILL.md.
+               KNOWN INTENTIONAL EXCEPTIONS — do NOT report these as findings at any priority:
+               the ECS services api-ikizmet-com/api-ikizmet-com-r and
+               api-ikizmet-com/api-ikizmet-com-b are deliberately scale-to-zero
+               (minCapacity=0); exclude any "no auto-scaling floor" / "can disappear" finding
+               about them.
             6. Write the report to /tmp/aws-audit-report.md and create the issue:
                  gh issue create --repo ${{ github.repository }} \
                    --title "AWS Audit: ${{ steps.account-info.outputs.alias }} (${{ matrix.account_id }}) — <UTC date YYYY-MM-DD>" \

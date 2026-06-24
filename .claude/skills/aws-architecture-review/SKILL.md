@@ -137,10 +137,24 @@ aws rds describe-db-instances --region us-west-2 | jq -r '.DBInstances[] | selec
 ## 4. Performance & Scalability
 
 **4.1 Auto-Scaling Configuration**
+
+> **Known intentional exceptions — do NOT flag these.** The following ECS services
+> are deliberately configured with `minCapacity=0` (scale-to-zero on demand) and are
+> NOT defects. Exclude them from any "no auto-scaling" / "minCapacity=0" / "service
+> can disappear with no floor" finding, at every priority level:
+> - `api-ikizmet-com/api-ikizmet-com-r`
+> - `api-ikizmet-com/api-ikizmet-com-b`
+>
+> If a future audit needs to add an exception, append the `cluster/service` here.
+
 ```bash
 # ECS services without auto-scaling
+# Intentional scale-to-zero services that must NOT be reported (see note above).
+SCALING_EXCEPTIONS="api-ikizmet-com/api-ikizmet-com-r api-ikizmet-com/api-ikizmet-com-b"
+
 aws ecs list-services --region us-west-2 --cluster <cluster> --query 'serviceArns[*]' --output text | while read arn; do
   SERVICE=$(basename "$arn")
+  case " $SCALING_EXCEPTIONS " in *" <cluster>/$SERVICE "*) continue ;; esac
   SCALING=$(aws application-autoscaling describe-scalable-targets --region us-west-2 --service-namespace ecs --resource-ids "service/<cluster>/$SERVICE" --query 'length(ScalableTargets)' --output text)
   if [ "$SCALING" -eq 0 ]; then
     echo "⚠️  $SERVICE: No auto-scaling configured"
