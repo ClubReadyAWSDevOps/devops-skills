@@ -155,11 +155,11 @@ Return ONLY valid JSON (no markdown, no explanation):
 
 Be precise with numbers. If data is missing, set to 0 or null. Always calculate waste and RI savings — don't return 0 unless you genuinely found zero waste."""
 
-    # Call Bedrock with Sonnet for deep analysis (Opus may not be available in all regions)
+    # Call Bedrock with Sonnet for deep analysis
     bedrock = boto3.client('bedrock-runtime', region_name='us-west-2')
 
     response = bedrock.invoke_model(
-        modelId='anthropic.claude-sonnet-4-6-v1:0',  # Use Sonnet 4.6 for analysis
+        modelId='anthropic.claude-sonnet-4-6',  # Use Sonnet 4.6 for analysis
         body=json.dumps({
             'anthropic_version': 'bedrock-2023-05-31',
             'max_tokens': 4096,  # Increased for comprehensive output
