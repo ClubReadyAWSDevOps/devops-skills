@@ -163,18 +163,97 @@ else
   RI_SAVINGS="0"
 fi
 
+# Check if AI summary exists and override metrics
+if [ -f /tmp/ai-summary.json ]; then
+  echo "Using AI-generated executive summary..."
+
+  # Extract AI-calculated metrics
+  AI_MONTHLY_COST=$(jq -r '.monthly_cost_formatted // "$N/A"' /tmp/ai-summary.json)
+  AI_WASTE=$(jq -r '.waste_monthly // 0' /tmp/ai-summary.json)
+  AI_RI_SAVINGS=$(jq -r '.ri_savings_monthly // 0' /tmp/ai-summary.json)
+  AI_ARCH_SCORE=$(jq -r '.architecture_score // "N/A"' /tmp/ai-summary.json)
+  AI_SCORE_RATIONALE=$(jq -r '.architecture_score_rationale // ""' /tmp/ai-summary.json)
+
+  # Override bash-extracted values with AI insights
+  MONTHLY_COST="$AI_MONTHLY_COST"
+  WASTE="$AI_WASTE"
+  RI_SAVINGS="$AI_RI_SAVINGS"
+  ARCH_SCORE="$AI_ARCH_SCORE"
+fi
+
 # Write executive summary
 cat >> "$REPORT_FILE" <<EOF
 ## Executive Summary
 
 | Metric | Value |
 |--------|-------|
-| **Monthly Cost** | \$$MONTHLY_COST |
+| **Monthly Cost** | $MONTHLY_COST |
 | **Identified Waste** | \$$WASTE/month |
 | **RI Savings Opportunity** | \$$RI_SAVINGS/month |
 | **Architecture Score** | $ARCH_SCORE/100 |
 | **Critical Issues** | $CRITICAL_COUNT 🔴 |
 | **High Priority** | $HIGH_COUNT 🟠 |
+
+EOF
+
+# Add AI-generated insights if available
+if [ -f /tmp/ai-summary.json ]; then
+  # Add score rationale
+  if [ -n "$AI_SCORE_RATIONALE" ]; then
+    cat >> "$REPORT_FILE" <<EOF
+**Architecture Score Rationale:** $AI_SCORE_RATIONALE
+
+EOF
+  fi
+
+  # Add waste breakdown
+  WASTE_SOURCES=$(jq -r '.waste_sources[]? | "- **\(.source)**: $\(.monthly_cost)/month"' /tmp/ai-summary.json 2>/dev/null || echo "")
+  if [ -n "$WASTE_SOURCES" ]; then
+    cat >> "$REPORT_FILE" <<EOF
+### 💰 Identified Waste Breakdown
+
+$WASTE_SOURCES
+
+EOF
+  fi
+
+  # Add RI savings details
+  RI_DETAILS=$(jq -r '.ri_details[]? | "- **\(.type)**: $\(.monthly_savings)/month — \(.action)"' /tmp/ai-summary.json 2>/dev/null || echo "")
+  if [ -n "$RI_DETAILS" ]; then
+    cat >> "$REPORT_FILE" <<EOF
+### 📊 RI Savings Opportunities
+
+$RI_DETAILS
+
+EOF
+  fi
+
+  # Add cost breakdown
+  COST_BREAKDOWN=$(jq -r '.cost_breakdown[]? | "| \(.service) | $\(.monthly) | \(.percent)% |"' /tmp/ai-summary.json 2>/dev/null || echo "")
+  if [ -n "$COST_BREAKDOWN" ]; then
+    cat >> "$REPORT_FILE" <<EOF
+### 💵 Cost Breakdown (Top Services)
+
+| Service | Monthly Cost | % of Total |
+|---------|--------------|------------|
+$COST_BREAKDOWN
+
+EOF
+  fi
+
+  # Add top action items
+  TOP_ACTIONS=$(jq -r '.top_actions[]? | "### \(.priority): \(.action)\n\n**Impact:** \(.impact)  \n**Urgency:** \(.urgency_days) days  \n**Effort:** \(.effort_hours) hours\n"' /tmp/ai-summary.json 2>/dev/null || echo "")
+  if [ -n "$TOP_ACTIONS" ]; then
+    cat >> "$REPORT_FILE" <<EOF
+### 🎯 Top Action Items
+
+$TOP_ACTIONS
+
+EOF
+  fi
+fi
+
+cat >> "$REPORT_FILE" <<EOF
 
 ---
 

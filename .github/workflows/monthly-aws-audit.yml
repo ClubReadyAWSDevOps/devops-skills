@@ -110,6 +110,17 @@ jobs:
           python3 scripts/run-audit-skill.py .claude/skills/aws-reserved-capacity/SKILL.md /tmp/reserved-capacity.txt
         continue-on-error: true
 
+      - name: Install boto3 for Bedrock summarization
+        run: |
+          pip3 install boto3 --quiet
+
+      - name: Generate AI-powered executive summary
+        id: ai-summary
+        run: |
+          echo "Generating AI-powered summary via AWS Bedrock..."
+          python3 scripts/summarize-with-bedrock.py /tmp/cost-review.txt /tmp/credentials-audit.txt /tmp/architecture-review.txt /tmp/reserved-capacity.txt > /tmp/ai-summary.json
+        continue-on-error: true
+
       - name: Consolidate findings
         run: |
           echo "Consolidating audit findings for account ${{ matrix.account_id }}..."
