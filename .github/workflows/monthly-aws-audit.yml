@@ -42,7 +42,6 @@ jobs:
       matrix:
         account_id: ${{ fromJson(needs.prepare-accounts.outputs.matrix) }}
       fail-fast: false  # Continue auditing other accounts even if one fails
-      max-parallel: 3   # Limit concurrent audits
     env:
       AWS_REGION: us-west-2
       AWS_ACCOUNT_ID: ${{ matrix.account_id }}
