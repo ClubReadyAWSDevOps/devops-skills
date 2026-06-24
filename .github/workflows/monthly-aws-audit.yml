@@ -128,17 +128,38 @@ jobs:
                api-ikizmet-com/api-ikizmet-com-b are deliberately scale-to-zero
                (minCapacity=0); exclude any "no auto-scaling floor" / "can disappear" finding
                about them.
-            6. Write the report to /tmp/aws-audit-report.md and create the issue:
-                 gh issue create --repo ${{ github.repository }} \
-                   --title "AWS Audit: ${{ steps.account-info.outputs.alias }} (${{ matrix.account_id }}) — <UTC date YYYY-MM-DD>" \
-                   --body-file /tmp/aws-audit-report.md \
-                   --label "aws-audit" --label "monthly-review" --label "automated" \
-                   --label "account:${{ matrix.account_id }}"
-               The per-account title is REQUIRED — this workflow runs once per account in a
-               matrix and a date-only title would collide across accounts.
+            6. Write the report to /tmp/aws-audit-report.md, then UPDATE the single canonical
+               issue for this account (one persistent issue per account, refreshed each round —
+               do NOT create a new issue every run). The "account:${{ matrix.account_id }}"
+               label is the stable key. Run exactly this find-or-create-or-reopen logic:
+
+                 TITLE="AWS Audit: ${{ steps.account-info.outputs.alias }} (${{ matrix.account_id }}) — $(date -u +%F)"
+                 EXISTING=$(gh issue list --repo ${{ github.repository }} \
+                   --label "account:${{ matrix.account_id }}" --state all --limit 1 \
+                   --json number --jq '.[0].number // empty')
+                 if [ -n "$EXISTING" ]; then
+                   gh issue reopen "$EXISTING" --repo ${{ github.repository }} 2>/dev/null || true
+                   gh issue edit "$EXISTING" --repo ${{ github.repository }} \
+                     --title "$TITLE" --body-file /tmp/aws-audit-report.md
+                   gh issue comment "$EXISTING" --repo ${{ github.repository }} \
+                     --body "🔄 Audit refreshed $(date -u +%F) (run ${{ github.run_id }}). Body above updated with the latest findings."
+                   echo "Updated existing issue #$EXISTING"
+                 else
+                   gh issue create --repo ${{ github.repository }} --title "$TITLE" \
+                     --body-file /tmp/aws-audit-report.md \
+                     --label "aws-audit" --label "monthly-review" --label "automated" \
+                     --label "account:${{ matrix.account_id }}"
+                 fi
+
+               Notes:
+               - Reopen first so a previously-closed issue comes back for the new round.
+               - The per-account title + "account:<id>" label are REQUIRED — they keep each
+                 account's issue distinct in this matrix workflow.
+               - Use --state all in the lookup so closed issues are found and reused, not
+                 duplicated.
 
             All AWS data is for account ${{ matrix.account_id }} only — every aws CLI call must
-            pass --region us-west-2. Finish by printing the created issue URL.
+            pass --region us-west-2. Finish by printing the issue URL (created or updated).
           claude_args: >-
             --model us.anthropic.claude-sonnet-4-6
             --max-turns 80
