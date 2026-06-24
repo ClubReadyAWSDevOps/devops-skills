@@ -86,45 +86,29 @@ jobs:
           aws sts get-caller-identity --region us-west-2
           echo "✅ AWS authentication successful"
 
-      - name: Run AWS Comprehensive Audit via Claude Code
-        id: comprehensive-audit
-        uses: anthropics/claude-code-action@80b31826338489861333dc17217865dfe8085cdc # v1
-        with:
-          use_bedrock: "true"
-          track_progress: false  # No PR to comment on
-          prompt: |
-            You are running an automated AWS infrastructure audit for account ${{ matrix.account_id }}.
+      - name: Run AWS Cost Review
+        id: cost-review
+        run: |
+          python3 scripts/run-audit-skill.py .claude/skills/aws-cost-review/SKILL.md /tmp/cost-review.txt
+        continue-on-error: true
 
-            The audit skills are checked out in .claude/skills/ and available via the Skill tool.
+      - name: Run AWS Credentials Audit
+        id: credentials-audit
+        run: |
+          python3 scripts/run-audit-skill.py .claude/skills/aws-credentials-audit/SKILL.md /tmp/credentials-audit.txt
+        continue-on-error: true
 
-            Execute all 4 audit skills and write their output to /tmp/ files:
+      - name: Run AWS Architecture Review
+        id: architecture-review
+        run: |
+          python3 scripts/run-audit-skill.py .claude/skills/aws-architecture-review/SKILL.md /tmp/architecture-review.txt
+        continue-on-error: true
 
-            1. Invoke the skill "aws-cost-review" (use Skill tool)
-               Write output to /tmp/cost-review.txt
-
-            2. Invoke the skill "aws-credentials-audit"
-               Write output to /tmp/credentials-audit.txt
-
-            3. Invoke the skill "aws-architecture-review"
-               Write output to /tmp/architecture-review.txt
-
-            4. Invoke the skill "aws-reserved-capacity"
-               Write output to /tmp/reserved-capacity.txt
-
-            Important:
-            - Use the Skill tool to invoke each audit
-            - Execute all AWS CLI commands in the skills using the Bash tool
-            - Capture the full structured output from each skill
-            - Write complete reports to the /tmp/ files for consolidation
-            - If a skill encounters AccessDenied, note it but continue with others
-            - Each file should contain the formatted audit report from that skill
-
-            After all skills complete, confirm in your final message which audits
-            succeeded and which (if any) had issues.
-          claude_args: >-
-            --model us.anthropic.claude-sonnet-4-6
-            --max-turns 50
-            --allowedTools "Skill,Read,Write,Bash"
+      - name: Run AWS Reserved Capacity Review
+        id: reserved-capacity
+        run: |
+          python3 scripts/run-audit-skill.py .claude/skills/aws-reserved-capacity/SKILL.md /tmp/reserved-capacity.txt
+        continue-on-error: true
 
       - name: Consolidate findings
         run: |
