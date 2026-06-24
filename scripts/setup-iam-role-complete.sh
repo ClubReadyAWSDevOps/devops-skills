@@ -121,8 +121,31 @@ aws iam put-role-policy --region us-west-2 \
 echo "   ✅ Permissions policy applied"
 echo ""
 
-# Step 5: Verify setup
-echo "5️⃣ Verifying setup..."
+# Step 5: Verify Bedrock model access
+echo "5️⃣ Verifying Bedrock model access..."
+
+MODEL_ID="anthropic.claude-sonnet-4-6"
+MODEL_NAME="Claude Sonnet 4.6"
+
+# Check if Anthropic models are accessible
+if aws bedrock list-foundation-models --region us-west-2 --by-provider anthropic --query "modelSummaries[?contains(modelId, 'sonnet-4-6')].modelId" --output text 2>/dev/null | grep -q "sonnet-4-6"; then
+  echo "   ✅ $MODEL_NAME is accessible"
+else
+  echo "   ❌ $MODEL_NAME NOT accessible"
+  echo "   📝 Enable model access in Bedrock Console:"
+  echo "   1. Go to: https://console.aws.amazon.com/bedrock/home?region=us-west-2#/modelaccess"
+  echo "   2. Click 'Enable specific models' or 'Manage model access'"
+  echo "   3. Check: Anthropic Claude Sonnet 4.6"
+  echo "   4. Click 'Request model access'"
+  echo "   5. Wait ~2 minutes for approval (usually instant)"
+  echo ""
+  echo "   ⚠️  WARNING: Audits will fail without Bedrock model access"
+fi
+
+echo ""
+
+# Step 6: Verify setup
+echo "6️⃣ Verifying setup..."
 
 # Check policy statements
 STATEMENT_COUNT=$(aws iam get-role-policy --region us-west-2 \
