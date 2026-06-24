@@ -119,6 +119,26 @@ To run automated audits across multiple AWS accounts:
 gh workflow run monthly-aws-audit.yml -f account_ids="123456789012,999888777666"
 ```
 
+### Auto-Detecting Missing Permissions
+
+The audit automatically detects missing IAM permissions and includes them in the GitHub issue:
+
+1. **Audit runs** and encounters `AccessDenied` errors
+2. **Script extracts** the missing permission actions (e.g., `ce:GetReservationUtilization`)
+3. **GitHub issue** includes a ready-to-apply IAM policy statement
+4. **You review** and apply the permissions:
+
+```bash
+# Option 1: Extract from issue and apply
+# (Copy the JSON from the GitHub issue to missing-permissions.json)
+./scripts/add-missing-permissions.sh missing-permissions.json
+
+# Option 2: Re-run full setup (merges with existing permissions)
+./scripts/setup-iam-role-permissions.sh
+```
+
+The next audit run will have the new permissions and complete successfully.
+
 ## Development
 
 ### Creating a New Skill

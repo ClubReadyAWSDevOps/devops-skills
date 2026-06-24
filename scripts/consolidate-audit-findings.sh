@@ -5,8 +5,56 @@ set -euo pipefail
 
 AUDIT_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
 REPORT_FILE="/tmp/consolidated-audit-report.md"
+MISSING_PERMS_FILE="/tmp/missing-permissions.json"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-N/A}"
 AWS_ACCOUNT_ALIAS="${AWS_ACCOUNT_ALIAS:-Unknown}"
+
+# Initialize missing permissions tracking
+echo '[]' > "$MISSING_PERMS_FILE"
+
+# Function to extract missing permissions from AWS CLI errors
+extract_missing_permissions() {
+  local audit_file=$1
+
+  if [ ! -f "$audit_file" ]; then
+    return
+  fi
+
+  # Look for AccessDenied errors and extract the action
+  # Example: "An error occurred (AccessDenied) when calling the GetCostAndUsage operation"
+  # Example: "User: arn:aws:sts::123:assumed-role/role is not authorized to perform: ce:GetCostAndUsage"
+
+  while IFS= read -r line; do
+    # Pattern 1: "is not authorized to perform: <action>"
+    if echo "$line" | grep -q "is not authorized to perform:"; then
+      ACTION=$(echo "$line" | grep -oP "is not authorized to perform: \K[a-zA-Z0-9:*]+" | head -1)
+      if [ -n "$ACTION" ]; then
+        # Add to missing permissions array
+        jq --arg action "$ACTION" '. += [$action] | unique' "$MISSING_PERMS_FILE" > "$MISSING_PERMS_FILE.tmp"
+        mv "$MISSING_PERMS_FILE.tmp" "$MISSING_PERMS_FILE"
+      fi
+    fi
+
+    # Pattern 2: "AccessDenied) when calling the <Operation> operation"
+    if echo "$line" | grep -qE "AccessDenied.*calling the [A-Za-z]+ operation"; then
+      OPERATION=$(echo "$line" | grep -oP "calling the \K[A-Za-z]+" | head -1)
+      # Try to infer the service from the audit file name
+      SERVICE=""
+      case "$audit_file" in
+        *cost-review*) SERVICE="ce" ;;
+        *credentials-audit*) SERVICE="iam" ;;
+        *architecture-review*) SERVICE="ec2" ;;  # Could be multiple
+        *reserved-capacity*) SERVICE="ce" ;;
+      esac
+
+      if [ -n "$OPERATION" ] && [ -n "$SERVICE" ]; then
+        ACTION="$SERVICE:$OPERATION"
+        jq --arg action "$ACTION" '. += [$action] | unique' "$MISSING_PERMS_FILE" > "$MISSING_PERMS_FILE.tmp"
+        mv "$MISSING_PERMS_FILE.tmp" "$MISSING_PERMS_FILE"
+      fi
+    fi
+  done < "$audit_file"
+}
 
 # Initialize report
 cat > "$REPORT_FILE" <<EOF
@@ -45,6 +93,13 @@ extract_findings() {
   echo "" >> "$REPORT_FILE"
   echo "</details>" >> "$REPORT_FILE"
 }
+
+# Extract missing permissions from all audit files
+for audit_file in /tmp/*-review.txt /tmp/*-audit.txt; do
+  if [ -f "$audit_file" ]; then
+    extract_missing_permissions "$audit_file"
+  fi
+done
 
 # Extract key metrics from cost review
 if [ -f /tmp/cost-review.txt ]; then
@@ -138,6 +193,87 @@ extract_findings "/tmp/architecture-review.txt" "Architecture Review" "${ARCH_ST
 extract_findings "/tmp/reserved-capacity.txt" "Reserved Capacity Review" "${RI_STATUS:-0}"
 
 # Add next steps
+# Check if we found any missing permissions
+MISSING_PERMS_COUNT=$(jq 'length' "$MISSING_PERMS_FILE")
+
+if [ "$MISSING_PERMS_COUNT" -gt 0 ]; then
+  cat >> "$REPORT_FILE" <<EOF
+
+---
+
+## ⚠️ Missing IAM Permissions Detected
+
+The audit encountered **$MISSING_PERMS_COUNT permission error(s)**. Add these permissions to the \`github-actions-claude-review\` IAM role:
+
+<details>
+<summary>📋 Required IAM Permissions (Click to expand)</summary>
+
+\`\`\`json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AdditionalAuditPermissions",
+      "Effect": "Allow",
+      "Action": [
+EOF
+
+  # Add each missing permission as a JSON array item
+  jq -r '.[] | "        \"" + . + "\","' "$MISSING_PERMS_FILE" | sed '$ s/,$//' >> "$REPORT_FILE"
+
+  cat >> "$REPORT_FILE" <<'EOF'
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**To apply these permissions:**
+
+```bash
+# Option 1: Automated (recommended)
+cd ~/projects/devops-skills
+./scripts/setup-iam-role-permissions.sh
+
+# Option 2: Manual
+aws iam put-role-policy --region us-west-2 \
+  --role-name github-actions-claude-review \
+  --policy-name AdditionalAuditPermissions \
+  --policy-document file://<(cat <<'POLICY'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+EOF
+
+  jq -r '.[] | "        \"" + . + "\","' "$MISSING_PERMS_FILE" | sed '$ s/,$//' >> "$REPORT_FILE"
+
+  cat >> "$REPORT_FILE" <<'EOF'
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+POLICY
+)
+```
+
+**Missing Actions:**
+EOF
+
+  # List missing actions as bullet points
+  jq -r '.[] | "- `" + . + "`"' "$MISSING_PERMS_FILE" >> "$REPORT_FILE"
+
+  cat >> "$REPORT_FILE" <<EOF
+
+</details>
+
+EOF
+fi
+
 cat >> "$REPORT_FILE" <<EOF
 
 ---
@@ -148,6 +284,15 @@ cat >> "$REPORT_FILE" <<EOF
 - [ ] **P1 (High):** Review and assign owners this week
 - [ ] **P2 (Medium):** Evaluate for next sprint
 - [ ] **P3 (Low):** Backlog for future improvements
+EOF
+
+if [ "$MISSING_PERMS_COUNT" -gt 0 ]; then
+  cat >> "$REPORT_FILE" <<EOF
+- [ ] **IAM Permissions:** Add $MISSING_PERMS_COUNT missing permission(s) to role
+EOF
+fi
+
+cat >> "$REPORT_FILE" <<EOF
 
 ---
 
