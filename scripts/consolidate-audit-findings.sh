@@ -103,8 +103,8 @@ done
 
 # Extract key metrics from cost review
 if [ -f /tmp/cost-review.txt ]; then
-  MONTHLY_COST=$(grep -oP "Current Month.*: \$\K[0-9,.]+" /tmp/cost-review.txt | head -1 || echo "N/A")
-  WASTE=$(grep -oP "waste.*\$\K[0-9,.]+" /tmp/cost-review.txt | head -1 || echo "0")
+  MONTHLY_COST=$(grep "Current Month" /tmp/cost-review.txt | head -1 | grep -oP '\$\K[0-9,.]+'  || echo "N/A")
+  WASTE=$(grep -i "waste" /tmp/cost-review.txt | grep -oP '\$\K[0-9,.]+'  | head -1 || echo "0")
 else
   MONTHLY_COST="N/A"
   WASTE="0"
