@@ -103,19 +103,9 @@ done
 
 # Extract key metrics from cost review
 if [ -f /tmp/cost-review.txt ]; then
-  # Try formatted output first (claude-code-action style)
-  MONTHLY_COST=$(grep "Current Month" /tmp/cost-review.txt | head -1 | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' || echo "")
-
-  # If not found, calculate from raw service costs (Python script style)
-  if [ -z "$MONTHLY_COST" ] || [ "$MONTHLY_COST" = "N/A" ]; then
-    # Extract only the first block of service costs (stop at first " - null:" line)
-    # Take lines between "Generated:" and first " - null:" that match "Service: $XXX" pattern
-    MONTHLY_COST=$(awk '/Generated:/{flag=1; next} flag && / - null:/{exit} flag && /: \$[0-9]+/' /tmp/cost-review.txt | grep -oE '\$[0-9]+' | sed 's/\$//' | awk '{sum+=$1} END {printf "%.2f", sum}')
-    # If still empty, mark as N/A
-    if [ -z "$MONTHLY_COST" ]; then
-      MONTHLY_COST="N/A"
-    fi
-  fi
+  # Sum all service costs from lines matching "Service Name: $AMOUNT" pattern
+  # Stop at the summary line (contains "- null:" suffix or is a standalone number)
+  MONTHLY_COST=$(awk '/Generated:/{flag=1; next} flag && / - null:/{exit} flag && /^[A-Za-z].*: \$[0-9]/' /tmp/cost-review.txt | sed -n 's/.*: \$\([0-9,]*\)/\1/p' | sed 's/,//g' | awk '{sum+=$1} END {if(sum>0) printf "%.0f", sum; else print "N/A"}')
 
   WASTE=$(grep -i "waste" /tmp/cost-review.txt | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' | head -1 || echo "0")
 else
@@ -146,7 +136,9 @@ if [ -f /tmp/reserved-capacity.txt ]; then
 
   # If not found, calculate from "On-Demand monthly" minus "1yr RI monthly"
   if [ -z "$RI_SAVINGS" ]; then
+    # Format: "On-Demand monthly: 741.680" (no $ sign, use awk to get last field)
     ON_DEMAND=$(grep "On-Demand monthly:" /tmp/reserved-capacity.txt | awk '{print $NF}' | head -1)
+    # Format: "1yr RI monthly (amortized): 453.91666666666666666666"
     RI_MONTHLY=$(grep "1yr RI monthly" /tmp/reserved-capacity.txt | awk '{print $NF}' | head -1)
 
     if [ -n "$ON_DEMAND" ] && [ -n "$RI_MONTHLY" ]; then
