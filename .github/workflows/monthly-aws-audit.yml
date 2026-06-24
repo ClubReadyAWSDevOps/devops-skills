@@ -75,7 +75,7 @@ jobs:
           echo "Account alias: $ACCOUNT_ALIAS"
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ matrix.account_id }}:role/github-actions-claude-review
           aws-region: us-west-2
@@ -160,7 +160,7 @@ jobs:
         id: create-issue
 
       - name: Upload audit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: aws-audit-results-${{ matrix.account_id }}-${{ github.run_number }}
