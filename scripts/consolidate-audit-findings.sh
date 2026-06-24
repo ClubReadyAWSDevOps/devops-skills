@@ -27,7 +27,7 @@ extract_missing_permissions() {
   while IFS= read -r line; do
     # Pattern 1: "is not authorized to perform: <action>"
     if echo "$line" | grep -q "is not authorized to perform:"; then
-      ACTION=$(echo "$line" | grep -oP "is not authorized to perform: \K[a-zA-Z0-9:*]+" | head -1)
+      ACTION=$(echo "$line" | sed -n 's/.*is not authorized to perform: \([a-zA-Z0-9:*]\+\).*/\1/p' | head -1)
       if [ -n "$ACTION" ]; then
         # Add to missing permissions array
         jq --arg action "$ACTION" '. += [$action] | unique' "$MISSING_PERMS_FILE" > "$MISSING_PERMS_FILE.tmp"
@@ -37,7 +37,7 @@ extract_missing_permissions() {
 
     # Pattern 2: "AccessDenied) when calling the <Operation> operation"
     if echo "$line" | grep -qE "AccessDenied.*calling the [A-Za-z]+ operation"; then
-      OPERATION=$(echo "$line" | grep -oP "calling the \K[A-Za-z]+" | head -1)
+      OPERATION=$(echo "$line" | sed -n 's/.*calling the \([A-Za-z]\+\) operation.*/\1/p' | head -1)
       # Try to infer the service from the audit file name
       SERVICE=""
       case "$audit_file" in
@@ -104,19 +104,19 @@ done
 # Extract key metrics from cost review
 if [ -f /tmp/cost-review.txt ]; then
   # Try formatted output first (claude-code-action style)
-  MONTHLY_COST=$(grep "Current Month" /tmp/cost-review.txt | head -1 | grep -oP '\$\K[0-9,.]+'  || echo "")
+  MONTHLY_COST=$(grep "Current Month" /tmp/cost-review.txt | head -1 | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' || echo "")
 
   # If not found, calculate from raw service costs (Python script style)
   if [ -z "$MONTHLY_COST" ] || [ "$MONTHLY_COST" = "N/A" ]; then
     # Sum all lines matching "Service Name: $XXXXX" pattern, excluding duplicates with " - null:"
-    MONTHLY_COST=$(grep -v ' - null:' /tmp/cost-review.txt | grep -oP ': \$\K[0-9]+' | awk '{sum+=$1} END {printf "%.2f", sum}')
+    MONTHLY_COST=$(grep -v ' - null:' /tmp/cost-review.txt | grep -oE ': \$[0-9]+' | sed 's/: \$//' | awk '{sum+=$1} END {printf "%.2f", sum}')
     # If still empty, mark as N/A
     if [ -z "$MONTHLY_COST" ]; then
       MONTHLY_COST="N/A"
     fi
   fi
 
-  WASTE=$(grep -i "waste" /tmp/cost-review.txt | grep -oP '\$\K[0-9,.]+'  | head -1 || echo "0")
+  WASTE=$(grep -i "waste" /tmp/cost-review.txt | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' | head -1 || echo "0")
 else
   MONTHLY_COST="N/A"
   WASTE="0"
@@ -130,14 +130,20 @@ fi
 
 # Extract architecture score
 if [ -f /tmp/architecture-review.txt ]; then
-  ARCH_SCORE=$(grep -oP "OVERALL SCORE: [A-F]\+ \(\K[0-9]+" /tmp/architecture-review.txt | head -1 || echo "N/A")
+  ARCH_SCORE=$(grep "OVERALL SCORE:" /tmp/architecture-review.txt | sed -n 's/.*OVERALL SCORE: [A-F]* (\([0-9]\+\).*/\1/p' | head -1 || echo "N/A")
+  if [ -z "$ARCH_SCORE" ]; then
+    ARCH_SCORE="N/A"
+  fi
 else
   ARCH_SCORE="N/A"
 fi
 
 # Extract RI savings potential
 if [ -f /tmp/reserved-capacity.txt ]; then
-  RI_SAVINGS=$(grep -oP "Total Monthly Savings Potential: \$\K[0-9,.]+" /tmp/reserved-capacity.txt | head -1 || echo "0")
+  RI_SAVINGS=$(grep "Total Monthly Savings Potential:" /tmp/reserved-capacity.txt | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' | head -1 || echo "0")
+  if [ -z "$RI_SAVINGS" ]; then
+    RI_SAVINGS="0"
+  fi
 else
   RI_SAVINGS="0"
 fi
