@@ -94,12 +94,19 @@ For ClubReady infrastructure specifics, see [INFRASTRUCTURE.md](INFRASTRUCTURE.m
 
 To run automated audits across multiple AWS accounts:
 
-1. **Add GitHub Secret for Account IDs:**
+1. **Add GitHub Variable for Account IDs:**
    ```
    Name: AWS_ACCOUNT_IDS
    Value: 123456789012,234567890123,345678901234
    ```
    Comma-separated list of AWS account IDs to audit.
+   
+   Add via CLI:
+   ```bash
+   gh variable set AWS_ACCOUNT_IDS --repo ClubReadyAWSDevOps/devops-skills --body "123456789012,234567890123"
+   ```
+   
+   Or via web UI: Settings → Secrets and variables → Actions → Variables tab → New repository variable
 
 2. **Create IAM Role in Each Account:**
    ```bash
