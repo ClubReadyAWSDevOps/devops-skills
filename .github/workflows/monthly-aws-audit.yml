@@ -89,7 +89,7 @@ jobs:
 
       - name: Run AWS Comprehensive Audit via Claude Code
         id: comprehensive-audit
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@80b31826338489861333dc17217865dfe8085cdc # v1
         with:
           use_bedrock: "true"
           track_progress: false  # No PR to comment on
