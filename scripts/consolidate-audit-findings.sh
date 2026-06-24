@@ -108,8 +108,9 @@ if [ -f /tmp/cost-review.txt ]; then
 
   # If not found, calculate from raw service costs (Python script style)
   if [ -z "$MONTHLY_COST" ] || [ "$MONTHLY_COST" = "N/A" ]; then
-    # Sum all lines matching "Service Name: $XXXXX" pattern, excluding duplicates with " - null:"
-    MONTHLY_COST=$(grep -v ' - null:' /tmp/cost-review.txt | grep -oE ': \$[0-9]+' | sed 's/: \$//' | awk '{sum+=$1} END {printf "%.2f", sum}')
+    # Extract only the first block of service costs (stop at first " - null:" line)
+    # Take lines between "Generated:" and first " - null:" that match "Service: $XXX" pattern
+    MONTHLY_COST=$(awk '/Generated:/{flag=1; next} flag && / - null:/{exit} flag && /: \$[0-9]+/' /tmp/cost-review.txt | grep -oE '\$[0-9]+' | sed 's/\$//' | awk '{sum+=$1} END {printf "%.2f", sum}')
     # If still empty, mark as N/A
     if [ -z "$MONTHLY_COST" ]; then
       MONTHLY_COST="N/A"
