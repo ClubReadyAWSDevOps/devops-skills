@@ -87,37 +87,43 @@ jobs:
           aws sts get-caller-identity --region us-west-2
           echo "✅ AWS authentication successful"
 
-      - name: Run Cost Review
-        id: cost-review
-        continue-on-error: true
-        run: |
-          echo "Running AWS Cost Review..."
-          bash .claude/skills/aws-cost-review/SKILL.md > /tmp/cost-review.txt 2>&1 || true
-          echo "status=$?" >> $GITHUB_OUTPUT
+      - name: Run AWS Comprehensive Audit via Claude Code
+        id: comprehensive-audit
+        uses: anthropics/claude-code-action@v1
+        with:
+          track_progress: false  # No PR to comment on
+          prompt: |
+            You are running an automated AWS infrastructure audit for account ${{ matrix.account_id }}.
 
-      - name: Run Credentials Audit
-        id: credentials-audit
-        continue-on-error: true
-        run: |
-          echo "Running AWS Credentials Audit..."
-          bash .claude/skills/aws-credentials-audit/SKILL.md > /tmp/credentials-audit.txt 2>&1 || true
-          echo "status=$?" >> $GITHUB_OUTPUT
+            The audit skills are checked out in .claude/skills/ and available via the Skill tool.
 
-      - name: Run Architecture Review
-        id: architecture-review
-        continue-on-error: true
-        run: |
-          echo "Running AWS Architecture Review..."
-          bash .claude/skills/aws-architecture-review/SKILL.md > /tmp/architecture-review.txt 2>&1 || true
-          echo "status=$?" >> $GITHUB_OUTPUT
+            Execute all 4 audit skills and write their output to /tmp/ files:
 
-      - name: Run Reserved Capacity Review
-        id: reserved-capacity
-        continue-on-error: true
-        run: |
-          echo "Running AWS Reserved Capacity Review..."
-          bash .claude/skills/aws-reserved-capacity/SKILL.md > /tmp/reserved-capacity.txt 2>&1 || true
-          echo "status=$?" >> $GITHUB_OUTPUT
+            1. Invoke the skill "aws-cost-review" (use Skill tool)
+               Write output to /tmp/cost-review.txt
+
+            2. Invoke the skill "aws-credentials-audit"
+               Write output to /tmp/credentials-audit.txt
+
+            3. Invoke the skill "aws-architecture-review"
+               Write output to /tmp/architecture-review.txt
+
+            4. Invoke the skill "aws-reserved-capacity"
+               Write output to /tmp/reserved-capacity.txt
+
+            Important:
+            - Use the Skill tool to invoke each audit (NOT bash execution)
+            - Capture the full structured output from each skill
+            - Write complete reports to the /tmp/ files for consolidation
+            - If a skill encounters AccessDenied, note it but continue with others
+            - Each file should contain the formatted audit report from that skill
+
+            After all skills complete, confirm in your final message which audits
+            succeeded and which (if any) had issues.
+          claude_args: >-
+            --model us.anthropic.claude-sonnet-4-6
+            --max-turns 50
+            --allowedTools "Skill,Read,Write,Bash"
 
       - name: Consolidate findings
         run: |
