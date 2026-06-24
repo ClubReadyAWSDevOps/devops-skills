@@ -141,7 +141,21 @@ fi
 
 # Extract RI savings potential
 if [ -f /tmp/reserved-capacity.txt ]; then
-  RI_SAVINGS=$(grep "Total Monthly Savings Potential:" /tmp/reserved-capacity.txt | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' | head -1 || echo "0")
+  # Try formatted "Total Monthly Savings Potential: $XXX" first
+  RI_SAVINGS=$(grep "Total Monthly Savings Potential:" /tmp/reserved-capacity.txt | sed -n 's/.*\$\([0-9,.]\+\).*/\1/p' | head -1 || echo "")
+
+  # If not found, calculate from "On-Demand monthly" minus "1yr RI monthly"
+  if [ -z "$RI_SAVINGS" ]; then
+    ON_DEMAND=$(grep "On-Demand monthly:" /tmp/reserved-capacity.txt | awk '{print $NF}' | head -1)
+    RI_MONTHLY=$(grep "1yr RI monthly" /tmp/reserved-capacity.txt | awk '{print $NF}' | head -1)
+
+    if [ -n "$ON_DEMAND" ] && [ -n "$RI_MONTHLY" ]; then
+      RI_SAVINGS=$(echo "$ON_DEMAND - $RI_MONTHLY" | bc | xargs printf "%.2f")
+    else
+      RI_SAVINGS="0"
+    fi
+  fi
+
   if [ -z "$RI_SAVINGS" ]; then
     RI_SAVINGS="0"
   fi
