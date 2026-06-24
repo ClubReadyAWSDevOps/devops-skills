@@ -44,7 +44,7 @@ aws rds describe-db-clusters --region us-west-2 | jq -r '.DBClusters[] | select(
 aws rds describe-db-cluster-snapshots --region us-west-2 --snapshot-type manual | jq -r '.DBClusterSnapshots | group_by(.DBClusterIdentifier) | map({cluster: .[0].DBClusterIdentifier, count: length, latest: (.[0].SnapshotCreateTime // "never")}) | .[]'
 
 # S3 versioning enabled
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | while read bucket; do
+aws s3api list-buckets --region us-west-2 --query 'Buckets[*].Name' --output text | while read bucket; do
   VERSIONING=$(aws s3api get-bucket-versioning --bucket "$bucket" 2>/dev/null | jq -r '.Status // "Disabled"')
   if [ "$VERSIONING" != "Enabled" ]; then
     echo "❌ $bucket: Versioning disabled (data loss risk)"
@@ -68,7 +68,7 @@ aws rds describe-db-instances --region us-west-2 | jq -r '.DBInstances[] | selec
 aws ec2 describe-security-groups --region us-west-2 | jq -r '.SecurityGroups[] | select(.IpPermissions[] | .IpRanges[] | .CidrIp == "0.0.0.0/0") | "⚠️  \(.GroupName) (\(.GroupId)): Open to internet on port \(.IpPermissions[].FromPort)"'
 
 # S3 buckets with public access
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | while read bucket; do
+aws s3api list-buckets --region us-west-2 --query 'Buckets[*].Name' --output text | while read bucket; do
   PUBLIC_BLOCK=$(aws s3api get-public-access-block --bucket "$bucket" 2>/dev/null | jq -r '.PublicAccessBlockConfiguration | if .BlockPublicAcls == true and .BlockPublicPolicy == true then "blocked" else "open" end')
   if [ "$PUBLIC_BLOCK" = "open" ]; then
     echo "🔴 $bucket: Public access not fully blocked"
@@ -82,7 +82,7 @@ done
 aws rds describe-db-clusters --region us-west-2 | jq -r '.DBClusters[] | select(.StorageEncrypted == false) | "❌ \(.DBClusterIdentifier): Encryption disabled"'
 
 # S3 default encryption
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | while read bucket; do
+aws s3api list-buckets --region us-west-2 --query 'Buckets[*].Name' --output text | while read bucket; do
   ENCRYPTION=$(aws s3api get-bucket-encryption --bucket "$bucket" 2>&1)
   if echo "$ENCRYPTION" | grep -q "ServerSideEncryptionConfigurationNotFoundError"; then
     echo "❌ $bucket: No default encryption"
@@ -175,7 +175,7 @@ aws ec2 describe-flow-logs --region us-west-2 --query 'length(FlowLogs)' --outpu
 # If 0, VPC flow logs not enabled (network visibility gap)
 
 # S3 access logging
-aws s3api list-buckets --query 'Buckets[*].Name' --output text | while read bucket; do
+aws s3api list-buckets --region us-west-2 --query 'Buckets[*].Name' --output text | while read bucket; do
   LOGGING=$(aws s3api get-bucket-logging --bucket "$bucket" 2>/dev/null | jq -r '.LoggingEnabled // empty')
   if [ -z "$LOGGING" ]; then
     echo "⚠️  $bucket: Access logging disabled"

@@ -361,13 +361,13 @@ region = us-west-2
 
 ```bash
 # SSO login (one-time per session)
-aws sso login --profile sso-production-admin
+AWS_PROFILE=sso-production-admin aws sso login --region us-west-2
 
-# Use profile
-aws s3 ls --profile sso-production-admin
+# Use profile via env var
+AWS_PROFILE=sso-production-admin aws s3 ls --region us-west-2
 
 # Assume role profile (uses source_profile credentials automatically)
-aws ec2 describe-instances --region us-west-2 --profile assume-production
+AWS_PROFILE=assume-production aws ec2 describe-instances --region us-west-2
 ```
 
 ---
@@ -433,8 +433,8 @@ aws organizations attach-policy --region us-west-2 --policy-id "$POLICY_ID" --ta
 ### 1. Verify SSO Access
 
 ```bash
-aws sso login --profile sso-production-admin
-aws sts get-caller-identity --profile sso-production-admin
+AWS_PROFILE=sso-production-admin aws sso login --region us-west-2
+AWS_PROFILE=sso-production-admin aws sts get-caller-identity --region us-west-2
 # Should return: arn:aws:sts::123456789012:assumed-role/AWSReservedSSO_AdministratorAccess_.../john.doe
 ```
 
@@ -449,8 +449,8 @@ aws sts assume-role --region us-west-2 --role-arn arn:aws:iam::123456789012:role
 
 ```bash
 # Try creating resource in forbidden region (should fail)
-aws sso login --profile sso-production-admin
-aws ec2 describe-instances --region eu-west-1 --profile sso-production-admin
+AWS_PROFILE=sso-production-admin aws sso login --region us-west-2
+AWS_PROFILE=sso-production-admin aws ec2 describe-instances --region eu-west-1
 # Error: An error occurred (UnauthorizedOperation) when calling the DescribeInstances operation
 ```
 
@@ -492,8 +492,8 @@ aws ec2 describe-instances --region eu-west-1 --profile sso-production-admin
 
 **SSO login fails with "Session expired"**
 ```bash
-aws sso logout --profile sso-production-admin
-aws sso login --profile sso-production-admin
+AWS_PROFILE=sso-production-admin aws sso logout --region us-west-2
+AWS_PROFILE=sso-production-admin aws sso login --region us-west-2
 ```
 
 **Assume role fails with "Not authorized"**
