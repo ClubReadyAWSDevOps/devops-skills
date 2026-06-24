@@ -112,7 +112,8 @@ jobs:
                Write output to /tmp/reserved-capacity.txt
 
             Important:
-            - Use the Skill tool to invoke each audit (NOT bash execution)
+            - Use the Skill tool to invoke each audit
+            - Execute all AWS CLI commands in the skills using the Bash tool
             - Capture the full structured output from each skill
             - Write complete reports to the /tmp/ files for consolidation
             - If a skill encounters AccessDenied, note it but continue with others
