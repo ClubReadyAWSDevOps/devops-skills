@@ -103,8 +103,8 @@ done
 
 # Extract key metrics from cost review
 if [ -f /tmp/cost-review.txt ]; then
-  MONTHLY_COST=$(grep -oP "Current Month.*: \$\K[0-9,]+" /tmp/cost-review.txt | head -1 || echo "N/A")
-  WASTE=$(grep -oP "waste.*\$\K[0-9,]+" /tmp/cost-review.txt | head -1 || echo "0")
+  MONTHLY_COST=$(grep -oP "Current Month.*: \$\K[0-9,.]+" /tmp/cost-review.txt | head -1 || echo "N/A")
+  WASTE=$(grep -oP "waste.*\$\K[0-9,.]+" /tmp/cost-review.txt | head -1 || echo "0")
 else
   MONTHLY_COST="N/A"
   WASTE="0"
@@ -125,7 +125,7 @@ fi
 
 # Extract RI savings potential
 if [ -f /tmp/reserved-capacity.txt ]; then
-  RI_SAVINGS=$(grep -oP "Total Monthly Savings Potential: \$\K[0-9,]+" /tmp/reserved-capacity.txt | head -1 || echo "0")
+  RI_SAVINGS=$(grep -oP "Total Monthly Savings Potential: \$\K[0-9,.]+" /tmp/reserved-capacity.txt | head -1 || echo "0")
 else
   RI_SAVINGS="0"
 fi
