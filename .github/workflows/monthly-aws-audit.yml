@@ -86,85 +86,57 @@ jobs:
           aws sts get-caller-identity --region us-west-2
           echo "✅ AWS authentication successful"
 
-      - name: Run AWS Cost Review
-        id: cost-review
-        run: |
-          python3 scripts/run-audit-skill.py .claude/skills/aws-cost-review/SKILL.md /tmp/cost-review.txt
-        continue-on-error: true
-
-      - name: Run AWS Credentials Audit
-        id: credentials-audit
-        run: |
-          python3 scripts/run-audit-skill.py .claude/skills/aws-credentials-audit/SKILL.md /tmp/credentials-audit.txt
-        continue-on-error: true
-
-      - name: Run AWS Architecture Review
-        id: architecture-review
-        run: |
-          python3 scripts/run-audit-skill.py .claude/skills/aws-architecture-review/SKILL.md /tmp/architecture-review.txt
-        continue-on-error: true
-
-      - name: Run AWS Reserved Capacity Review
-        id: reserved-capacity
-        run: |
-          python3 scripts/run-audit-skill.py .claude/skills/aws-reserved-capacity/SKILL.md /tmp/reserved-capacity.txt
-        continue-on-error: true
-
-      - name: Install boto3 for Bedrock summarization
-        run: |
-          pip3 install boto3 --quiet
-
-      - name: Generate AI-powered executive summary
-        id: ai-summary
-        run: |
-          echo "Generating AI-powered summary via AWS Bedrock..."
-          python3 scripts/summarize-with-bedrock.py /tmp/cost-review.txt /tmp/credentials-audit.txt /tmp/architecture-review.txt /tmp/reserved-capacity.txt > /tmp/ai-summary.json
-        continue-on-error: true
-
-      - name: Consolidate findings
-        run: |
-          echo "Consolidating audit findings for account ${{ matrix.account_id }}..."
-          bash scripts/consolidate-audit-findings.sh
-        env:
-          AWS_ACCOUNT_ID: ${{ matrix.account_id }}
-          AWS_ACCOUNT_ALIAS: ${{ steps.account-info.outputs.alias }}
-          COST_STATUS: ${{ steps.cost-review.outputs.status }}
-          CREDS_STATUS: ${{ steps.credentials-audit.outputs.status }}
-          ARCH_STATUS: ${{ steps.architecture-review.outputs.status }}
-          RI_STATUS: ${{ steps.reserved-capacity.outputs.status }}
-
-      - name: Create GitHub Issue
-        run: |
-          ACCOUNT_ALIAS="${{ steps.account-info.outputs.alias }}"
-          ACCOUNT_ID="${{ matrix.account_id }}"
-          ISSUE_TITLE="AWS Audit: $ACCOUNT_ALIAS ($ACCOUNT_ID) — $(date -u +%Y-%m-%d)"
-
-          gh issue create \
-            --repo "$GITHUB_AUDIT_REPO" \
-            --title "$ISSUE_TITLE" \
-            --body-file /tmp/consolidated-audit-report.md \
-            --label "aws-audit,monthly-review,automated" \
-            --label "account:$ACCOUNT_ID"
-
-          ISSUE_URL=$(gh issue list --repo "$GITHUB_AUDIT_REPO" --limit 1 --label "aws-audit" --label "account:$ACCOUNT_ID" --json url --jq '.[0].url')
-
-          echo "✅ AWS Audit complete for $ACCOUNT_ALIAS"
-          echo "📋 GitHub Issue: $ISSUE_URL"
-          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+      - name: Run AWS Comprehensive Audit via Claude Code
+        id: comprehensive-audit
+        uses: anthropics/claude-code-action@80b31826338489861333dc17217865dfe8085cdc # v1
         env:
           GH_TOKEN: ${{ github.token }}
-        id: create-issue
-
-      - name: Upload audit artifacts
-        uses: actions/upload-artifact@v5
-        if: always()
+          AWS_ACCOUNT_ID: ${{ matrix.account_id }}
+          AWS_ACCOUNT_ALIAS: ${{ steps.account-info.outputs.alias }}
         with:
-          name: aws-audit-results-${{ matrix.account_id }}-${{ github.run_number }}
-          path: /tmp/*-review.txt
+          github_token: ${{ github.token }}
+          use_bedrock: "true"
+          track_progress: false # No PR to comment on — this is a scheduled audit
+          prompt: |
+            You are running the automated monthly AWS infrastructure audit for
+            account ${{ matrix.account_id }} (alias: ${{ steps.account-info.outputs.alias }}).
+
+            Invoke the project's own audit machinery — do NOT invent your own checklist.
+            The skill is checked out in .claude/skills/aws-comprehensive-audit/ and the four
+            sub-audit skills it orchestrates are available via the Skill tool.
+
+            Steps:
+            1. Invoke the skill "aws-comprehensive-audit" via the Skill tool. It runs all four
+               sub-audits (cost, credentials, architecture, reserved-capacity), synthesizes the
+               findings into a prioritized report (P0–P3 with calculated cost/waste/savings
+               metrics and an architecture score), and creates the GitHub issue.
+            2. CRITICAL — multi-account uniqueness: this workflow runs once per account in a
+               matrix. Override the skill's default date-only issue title so each account gets a
+               distinct issue. Use exactly this title:
+                 "AWS Audit: ${{ steps.account-info.outputs.alias }} (${{ matrix.account_id }}) — <UTC date YYYY-MM-DD>"
+               and create it against repo ${{ github.repository }} with labels
+               "aws-audit", "monthly-review", "automated", and "account:${{ matrix.account_id }}".
+            3. All AWS data is for account ${{ matrix.account_id }} only — every aws CLI call
+               must pass --region us-west-2. Never query or reference any other account.
+            4. If a sub-audit hits AccessDenied, note the missing permission in the report and
+               continue with the others — partial results are better than none.
+
+            Finish by printing the created issue URL in your final message.
+          claude_args: >-
+            --model us.anthropic.claude-sonnet-4-6
+            --max-turns 50
+            --allowedTools "Skill,Task,Agent,Read,Write,Glob,Grep,Bash"
+
+      - name: Upload audit transcript
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: aws-audit-transcript-${{ matrix.account_id }}-${{ github.run_number }}
+          path: ${{ steps.comprehensive-audit.outputs.execution_file }}
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Notify on failure
         if: failure()
         run: |
-          echo "::error::AWS Comprehensive Audit failed. Check logs for details."
-          # Optional: Add Slack/email notification here
+          echo "::error::AWS Comprehensive Audit failed for account ${{ matrix.account_id }}. Check logs and transcript artifact."
