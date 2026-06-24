@@ -103,7 +103,19 @@ done
 
 # Extract key metrics from cost review
 if [ -f /tmp/cost-review.txt ]; then
-  MONTHLY_COST=$(grep "Current Month" /tmp/cost-review.txt | head -1 | grep -oP '\$\K[0-9,.]+'  || echo "N/A")
+  # Try formatted output first (claude-code-action style)
+  MONTHLY_COST=$(grep "Current Month" /tmp/cost-review.txt | head -1 | grep -oP '\$\K[0-9,.]+'  || echo "")
+
+  # If not found, calculate from raw service costs (Python script style)
+  if [ -z "$MONTHLY_COST" ] || [ "$MONTHLY_COST" = "N/A" ]; then
+    # Sum all lines matching "Service Name: $XXXXX" pattern, excluding duplicates with " - null:"
+    MONTHLY_COST=$(grep -v ' - null:' /tmp/cost-review.txt | grep -oP ': \$\K[0-9]+' | awk '{sum+=$1} END {printf "%.2f", sum}')
+    # If still empty, mark as N/A
+    if [ -z "$MONTHLY_COST" ]; then
+      MONTHLY_COST="N/A"
+    fi
+  fi
+
   WASTE=$(grep -i "waste" /tmp/cost-review.txt | grep -oP '\$\K[0-9,.]+'  | head -1 || echo "0")
 else
   MONTHLY_COST="N/A"

@@ -79,7 +79,9 @@ def execute_skill(skill_path: str, output_file: str) -> int:
     print(f"   Found {len(commands)} command blocks", file=sys.stderr)
 
     # Execute commands and capture output
-    output_lines = [f"=== {skill_name} Audit ===", f"Generated: $(date -u +%Y-%m-%d)", ""]
+    from datetime import datetime
+    audit_date = datetime.utcnow().strftime('%Y-%m-%d')
+    output_lines = [f"=== {skill_name} Audit ===", f"Generated: {audit_date}", ""]
 
     for i, cmd in enumerate(commands, 1):
         print(f"   Executing block {i}/{len(commands)}...", file=sys.stderr)
