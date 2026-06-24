@@ -9,9 +9,22 @@
         "bedrock:InvokeModelWithResponseStream"
       ],
       "Resource": [
-        "arn:aws:bedrock:*::foundation-model/anthropic.claude-*",
+        "arn:aws:bedrock:*::foundation-model/anthropic.*",
+        "arn:aws:bedrock:*:*:inference-profile/us.anthropic.*",
         "arn:aws:bedrock:*::foundation-model/amazon.titan-*"
       ]
+    },
+    {
+      "Sid": "BedrockMarketplaceEnable",
+      "Effect": "Allow",
+      "Action": [
+        "aws-marketplace:Subscribe",
+        "aws-marketplace:ViewSubscriptions",
+        "bedrock:CreateFoundationModelAgreement",
+        "bedrock:ListFoundationModelAgreementOffers",
+        "bedrock:GetFoundationModelAvailability"
+      ],
+      "Resource": "*"
     },
     {
       "Sid": "CostManagement",

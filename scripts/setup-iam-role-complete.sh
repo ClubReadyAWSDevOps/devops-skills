@@ -121,25 +121,37 @@ aws iam put-role-policy --region us-west-2 \
 echo "   ✅ Permissions policy applied"
 echo ""
 
-# Step 5: Verify Bedrock model access
-echo "5️⃣ Verifying Bedrock model access..."
+# Step 5: Enable + verify Bedrock model access
+echo "5️⃣ Enabling and verifying Bedrock model access..."
 
-MODEL_ID="anthropic.claude-sonnet-4-6"
+INFERENCE_PROFILE="us.anthropic.claude-sonnet-4-6"
 MODEL_NAME="Claude Sonnet 4.6"
 
-# Check if Anthropic models are accessible
-if aws bedrock list-foundation-models --region us-west-2 --by-provider anthropic --query "modelSummaries[?contains(modelId, 'sonnet-4-6')].modelId" --output text 2>/dev/null | grep -q "sonnet-4-6"; then
-  echo "   ✅ $MODEL_NAME is accessible"
+# The legacy "Model access" console page is retired. Anthropic/Marketplace models
+# now enable account-wide on the FIRST successful invoke by a principal that holds
+# aws-marketplace:Subscribe (granted via the BedrockMarketplaceEnable statement).
+# A real invoke is the only reliable check — listing the catalog returns the model
+# even when access is NOT yet granted.
+echo "   Invoking $MODEL_NAME once to trigger account-wide enablement..."
+
+if aws bedrock-runtime invoke-model --region us-west-2 \
+  --model-id "$INFERENCE_PROFILE" \
+  --body '{"anthropic_version":"bedrock-2023-05-31","max_tokens":5,"messages":[{"role":"user","content":"ok"}]}' \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/bedrock-enable-check.json >/dev/null 2>/tmp/bedrock-enable-err.txt; then
+  echo "   ✅ $MODEL_NAME is invokable — model access is enabled account-wide"
+  rm -f /tmp/bedrock-enable-check.json /tmp/bedrock-enable-err.txt
 else
-  echo "   ❌ $MODEL_NAME NOT accessible"
-  echo "   📝 Enable model access in Bedrock Console:"
-  echo "   1. Go to: https://console.aws.amazon.com/bedrock/home?region=us-west-2#/modelaccess"
-  echo "   2. Click 'Enable specific models' or 'Manage model access'"
-  echo "   3. Check: Anthropic Claude Sonnet 4.6"
-  echo "   4. Click 'Request model access'"
-  echo "   5. Wait ~2 minutes for approval (usually instant)"
+  echo "   ❌ $MODEL_NAME invoke FAILED:"
+  sed 's/^/      /' /tmp/bedrock-enable-err.txt
   echo ""
-  echo "   ⚠️  WARNING: Audits will fail without Bedrock model access"
+  echo "   If the error mentions aws-marketplace:Subscribe, the role is missing the"
+  echo "   BedrockMarketplaceEnable permissions — re-apply the policy (Step 4) and retry."
+  echo "   First-time Anthropic use may also require submitting a one-time use-case form"
+  echo "   in the Bedrock console for this account."
+  echo ""
+  echo "   ⚠️  WARNING: Audits for this account will fail until this invoke succeeds."
+  rm -f /tmp/bedrock-enable-check.json /tmp/bedrock-enable-err.txt
 fi
 
 echo ""
