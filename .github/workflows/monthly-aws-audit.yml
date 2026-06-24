@@ -1,0 +1,128 @@
+name: Monthly AWS Audit
+
+on:
+  schedule:
+    # Run on 1st of every month at 9 AM UTC
+    - cron: '0 9 1 * *'
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      aws_account_id:
+        description: 'AWS Account ID to audit (defaults to secrets.AWS_ACCOUNT_ID)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+  issues: write    # Create GitHub issue with findings
+
+jobs:
+  comprehensive-audit:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-west-2
+      AWS_ACCOUNT_ID: ${{ inputs.aws_account_id || secrets.AWS_ACCOUNT_ID }}
+      GITHUB_AUDIT_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y jq bc
+
+          # Verify installations
+          aws --version
+          jq --version
+          bc --version
+          gh --version
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/aws-audit-github-actions
+          aws-region: us-west-2
+          role-session-name: github-actions-aws-audit
+
+      - name: Verify AWS access
+        run: |
+          echo "Testing AWS CLI access..."
+          aws sts get-caller-identity --region us-west-2
+          echo "✅ AWS authentication successful"
+
+      - name: Run Cost Review
+        id: cost-review
+        continue-on-error: true
+        run: |
+          echo "Running AWS Cost Review..."
+          bash .claude/skills/aws-cost-review/SKILL.md > /tmp/cost-review.txt 2>&1 || true
+          echo "status=$?" >> $GITHUB_OUTPUT
+
+      - name: Run Credentials Audit
+        id: credentials-audit
+        continue-on-error: true
+        run: |
+          echo "Running AWS Credentials Audit..."
+          bash .claude/skills/aws-credentials-audit/SKILL.md > /tmp/credentials-audit.txt 2>&1 || true
+          echo "status=$?" >> $GITHUB_OUTPUT
+
+      - name: Run Architecture Review
+        id: architecture-review
+        continue-on-error: true
+        run: |
+          echo "Running AWS Architecture Review..."
+          bash .claude/skills/aws-architecture-review/SKILL.md > /tmp/architecture-review.txt 2>&1 || true
+          echo "status=$?" >> $GITHUB_OUTPUT
+
+      - name: Run Reserved Capacity Review
+        id: reserved-capacity
+        continue-on-error: true
+        run: |
+          echo "Running AWS Reserved Capacity Review..."
+          bash .claude/skills/aws-reserved-capacity/SKILL.md > /tmp/reserved-capacity.txt 2>&1 || true
+          echo "status=$?" >> $GITHUB_OUTPUT
+
+      - name: Consolidate findings
+        run: |
+          echo "Consolidating audit findings..."
+          bash scripts/consolidate-audit-findings.sh
+        env:
+          COST_STATUS: ${{ steps.cost-review.outputs.status }}
+          CREDS_STATUS: ${{ steps.credentials-audit.outputs.status }}
+          ARCH_STATUS: ${{ steps.architecture-review.outputs.status }}
+          RI_STATUS: ${{ steps.reserved-capacity.outputs.status }}
+
+      - name: Create GitHub Issue
+        run: |
+          ISSUE_TITLE="AWS Infrastructure Audit — $(date -u +%Y-%m-%d)"
+
+          gh issue create \
+            --repo "$GITHUB_AUDIT_REPO" \
+            --title "$ISSUE_TITLE" \
+            --body-file /tmp/consolidated-audit-report.md \
+            --label "aws-audit,monthly-review,automated"
+
+          ISSUE_URL=$(gh issue list --repo "$GITHUB_AUDIT_REPO" --limit 1 --label "aws-audit" --json url --jq '.[0].url')
+
+          echo "✅ AWS Audit complete"
+          echo "📋 GitHub Issue: $ISSUE_URL"
+          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+        id: create-issue
+
+      - name: Upload audit artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aws-audit-results-${{ github.run_number }}
+          path: /tmp/*-review.txt
+          retention-days: 90
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::AWS Comprehensive Audit failed. Check logs for details."
+          # Optional: Add Slack/email notification here

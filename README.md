@@ -24,6 +24,10 @@ After installation, run `/reload-plugins` in Claude Code to register the new ski
 
 ## Available Skills
 
+### Orchestration (Start Here!)
+
+- **`aws-comprehensive-audit`** ⭐ — **Master orchestrator** that runs all AWS audits in parallel (cost, credentials, architecture, reserved capacity) and creates a consolidated GitHub issue with prioritized findings. Run this monthly or before major infrastructure changes.
+
 ### Cost Management
 
 - **`aws-cost-review`** — Monthly budget analysis, spend trends, and anomaly detection across all AWS services
