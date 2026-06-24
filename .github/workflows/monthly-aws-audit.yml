@@ -91,6 +91,7 @@ jobs:
         id: comprehensive-audit
         uses: anthropics/claude-code-action@v1
         with:
+          use_bedrock: "true"
           track_progress: false  # No PR to comment on
           prompt: |
             You are running an automated AWS infrastructure audit for account ${{ matrix.account_id }}.
