@@ -97,6 +97,7 @@ jobs:
           github_token: ${{ github.token }}
           use_bedrock: "true"
           track_progress: false # No PR to comment on — this is a scheduled audit
+          allowed_actors: "*"  # Allow any actor (schedule/dispatch triggers have no PR author)
           prompt: |
             You are running the automated monthly AWS infrastructure audit for
             account ${{ matrix.account_id }} (alias: ${{ steps.account-info.outputs.alias }}).
