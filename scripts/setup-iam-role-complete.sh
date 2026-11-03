@@ -124,8 +124,8 @@ echo ""
 # Step 5: Enable + verify Bedrock model access
 echo "5️⃣ Enabling and verifying Bedrock model access..."
 
-INFERENCE_PROFILE="us.anthropic.claude-sonnet-4-6"
-MODEL_NAME="Claude Sonnet 4.6"
+INFERENCE_PROFILE="us.anthropic.claude-sonnet-5-5"
+MODEL_NAME="Claude Sonnet 5.5"
 
 # The legacy "Model access" console page is retired. Anthropic/Marketplace models
 # now enable account-wide on the FIRST successful invoke by a principal that holds
