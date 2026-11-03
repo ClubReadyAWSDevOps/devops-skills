@@ -9,9 +9,14 @@
         "bedrock:InvokeModelWithResponseStream"
       ],
       "Resource": [
-        "arn:aws:bedrock:*::foundation-model/anthropic.*",
-        "arn:aws:bedrock:*:*:inference-profile/us.anthropic.*",
-        "arn:aws:bedrock:*::foundation-model/amazon.titan-*"
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-5-5",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-5-5",
+        "arn:aws:bedrock:::foundation-model/anthropic.claude-sonnet-5-5",
+        "arn:aws:bedrock:::foundation-model/anthropic.claude-haiku-5-5",
+        "arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-sonnet-5-5",
+        "arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-haiku-5-5",
+        "arn:aws:bedrock:*:*:inference-profile/global.anthropic.claude-sonnet-5-5",
+        "arn:aws:bedrock:*:*:inference-profile/global.anthropic.claude-haiku-5-5"
       ]
     },
     {

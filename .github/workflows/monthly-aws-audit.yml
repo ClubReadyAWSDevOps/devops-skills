@@ -93,6 +93,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           AWS_ACCOUNT_ID: ${{ matrix.account_id }}
           AWS_ACCOUNT_ALIAS: ${{ steps.account-info.outputs.alias }}
+          # The role only allows Sonnet 5.5 and Haiku 5.5. Point the opus alias at
+          # Sonnet so Claude Code's startup probe stays inside that allowlist.
+          ANTHROPIC_DEFAULT_SONNET_MODEL: us.anthropic.claude-sonnet-5-5
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: us.anthropic.claude-haiku-5-5
+          ANTHROPIC_DEFAULT_OPUS_MODEL: us.anthropic.claude-sonnet-5-5
         with:
           github_token: ${{ github.token }}
           use_bedrock: "true"
@@ -162,7 +167,7 @@ jobs:
             All AWS data is for account ${{ matrix.account_id }} only — every aws CLI call must
             pass --region us-west-2. Finish by printing the issue URL (created or updated).
           claude_args: >-
-            --model us.anthropic.claude-sonnet-4-6
+            --model us.anthropic.claude-sonnet-5-5
             --max-turns 80
             --allowedTools "Skill,Read,Write,Glob,Grep,Bash"
 
